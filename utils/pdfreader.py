@@ -1,7 +1,7 @@
 import fitz
 import re
 
-pdf_file = './pdf/1.pdf'
+pdf_file = './pdf/5.pdf'
 
 def extract_data(pdf_file):
     print("Extracting data from PDF...", pdf_file)
@@ -20,6 +20,9 @@ def extract_data(pdf_file):
         text = page.get_text()
         lines = text.split('\n')
         
+        resolucion_text = ""
+        descripcion_text = ""
+        
         for line in lines:
             if line.startswith('Informe final, solicitud'):
                 data['CASO'] = line.split(' ')[-1]
@@ -28,39 +31,38 @@ def extract_data(pdf_file):
                 data['SINIESTRO VEHICULO'] = line.split(' ')[-1]
                 
             elif line.startswith('Resolucion'):
-                
                 resolucion_text = ' '.join(lines[lines.index(line):])
-                resolucion_text = resolucion_text[:resolucion_text.find('FECHA DE PAGO')]
                 
-                match = re.search(r'ACORDADO CON[ ]*([\w\s]+?)[ _]*(CUIL|CUIT)', resolucion_text)
-                
-                resolucion = {}
-                
-                if match:
-                    resolucion['ACORDADO CON'] = match.group(1).strip()
-                data['RESOLUCION'] = resolucion
+            elif line.startswith('Descripcion'):
+                descripcion_text = ' '.join(lines[lines.index(line):])
 
-                match = re.search(r'(CUIL | CUIT)[ ]*([\w\s]+?)[ _]*(MEDIANTE TRANSFERENCIA BANCARIA EN)', resolucion_text)
-                
-                if match:
-                    resolucion['CUIL/CUIT'] = match.group(2).strip()
-                    
-                match = re.search(r'MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$(\d+[\.,\d]*?)-', resolucion_text)
-                
-                if match:
-                    resolucion['MEDIANTE TRANSFERENCIA BANCARIA EN'] = match.group(1).strip()
-                
-                if resolucion:
-                    data['RESOLUCION'] = resolucion
-                
+        # Combine resolucion_text and descripcion_text for searching
+        combined_text = resolucion_text + " " + descripcion_text
+        combined_text = combined_text[:combined_text.find('FECHA DE PAGO')]
+
+        # Extract information
+        resolucion = {}
+        
+        match = re.search(r'ACORDADO CON\s*([A-Z\s,]+)\s*(CUIL|CUIT)\s*(\d+[\d\-]*)', combined_text, re.IGNORECASE)
+        if match:
+            resolucion['ACORDADO CON'] = match.group(1).strip()
+            resolucion['CUIL/CUIT'] = match.group(3).strip()
+        
+        match = re.search(r'MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$([\d\.,]+)', combined_text)
+        if match:
+            resolucion['MEDIANTE TRANSFERENCIA BANCARIA EN'] = match.group(1).strip()
+
+        if resolucion:
+            data['RESOLUCION'] = resolucion
+        
         if all(key in data for key in ['CASO', 'SINIESTRO VEHICULO', 'RESOLUCION']):
             break
+
     doc.close()
-    
     return data
 
 # Procesar el PDF y extraer los datos
-pdf_file = './pdf/1.pdf'
+pdf_file = './pdf/5.pdf'
 data_extracted = extract_data(pdf_file)
 print(data_extracted)
 # for key, value in data_extracted.items():
