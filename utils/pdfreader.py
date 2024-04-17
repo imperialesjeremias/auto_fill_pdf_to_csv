@@ -1,70 +1,74 @@
 import fitz
 import re
 
-pdf_file = './pdf/5.pdf'
-
 def extract_data(pdf_file):
     print("Extracting data from PDF...", pdf_file)
     data = {}
-    
     doc = fitz.open(pdf_file)
-
-    # datos a extraer
-    # solicitud 84920
-    # Siniestro N°
-    # Resolucion = [ACORDADO CON, CUIT/CUIL, MONTO ACORDADO]
     
+    # ITERAMOS SOBRE LAS PAGINAS DEL PDF
     for page_number in range(len(doc)):
-        
+        # OBTENEMOS EL TEXTO DE LA PAGINA
         page = doc[page_number]
         text = page.get_text()
         lines = text.split('\n')
         
+        # INICIALIZAMOS LAS VARIABLES DE RESOLUCION Y DESCRIPCION
         resolucion_text = ""
         descripcion_text = ""
         
+        # IETRAMOS SOBRE LAS LINEAS DEL PDF PARA EXTRAER LOS DATOS
         for line in lines:
             if line.startswith('Informe final, solicitud'):
                 data['CASO'] = line.split(' ')[-1]
-                
             elif line.startswith('Siniestro N°'):
                 data['SINIESTRO VEHICULO'] = line.split(' ')[-1]
-                
             elif line.startswith('Resolucion'):
                 resolucion_text = ' '.join(lines[lines.index(line):])
-                
             elif line.startswith('Descripcion'):
                 descripcion_text = ' '.join(lines[lines.index(line):])
-
-        # Combine resolucion_text and descripcion_text for searching
-        combined_text = resolucion_text + " " + descripcion_text
-        combined_text = combined_text[:combined_text.find('FECHA DE PAGO')]
-
-        # Extract information
+        
+        # CREAMOS UN DICCIONARIO PARA ALMACENAR LOS DATOS DE LA RESOLUCION
         resolucion = {}
         
-        match = re.search(r'ACORDADO CON\s*([A-Z\s,]+)\s*(CUIL|CUIT)\s*(\d+[\d\-]*)', combined_text, re.IGNORECASE)
-        if match:
-            resolucion['ACORDADO CON'] = match.group(1).strip()
-            resolucion['CUIL/CUIT'] = match.group(3).strip()
+        # EXTRAEMOS LOS DATOS DE LA RESOLUCION METODO 1
+        pattern = r'(ACORDADO CON)\s_+([\w\s]+)[\s_]*(CUIL|CUIT)\s*[(_]*([\d]+)[)_]*\s*MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$?[\s_]*([\d.,]+)\s*-?\.?'
+        match_gen = re.search(pattern, resolucion_text, re.IGNORECASE)
+        if match_gen:
+            resolucion['ACORDADO CON'] = match_gen.group(2).strip()
+            resolucion['CUIL/CUIT'] = match_gen.group(4).strip()
+            resolucion['MONTO ACORDADO'] = match_gen.group(5).strip().replace(',', '')
         
-        match = re.search(r'MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$([\d\.,]+)', combined_text)
-        if match:
-            resolucion['MEDIANTE TRANSFERENCIA BANCARIA EN'] = match.group(1).strip()
+        # SI EL METODO 1 NO FUNCIONA PROBAMOS CON EL METODO 2
+        if match_gen is None:
+            pattern = (r'ACORDADO CON\s*([A-Z\s,]+)\s*(CUIL|CUIT)\s*(\d+[\d\-]*)')
+            match_gen2 = re.search(pattern, resolucion_text, re.IGNORECASE)
+            if match_gen2:
+                resolucion['ACORDADO CON'] = match_gen2.group(1).strip()
+                resolucion['CUIL/CUIT'] = match_gen2.group(3).strip()
+            match2 = re.search(r'MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$([\d\.,]+)', resolucion_text)
+            if match2:
+                resolucion['MEDIANTE TRANSFERENCIA BANCARIA EN'] = match2.group(1).strip()
+        
+        # EXTRAEMOS LOS DATOS DE LOS HONORARIOS METODO 1
+        pattern = r'(HONORARIOS ACORDADOS CON)\s*([\w\s-]+)(_|\s)*([CUI|CUIT])\s*(_|\s)*([\d]+)(_|\s)*MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$?[\s_]*([\d.,]+)\s*-?\.?'
+        match_honorarios = re.search(pattern, descripcion_text, re.IGNORECASE)
+        if match_honorarios:
+            resolucion['CUIL/CUIT HONORARIOS'] = match_honorarios.group(6)
+            resolucion['MONTO HONORARIOS'] = match_honorarios.group(8)
 
+        # SI RESOLUCION ES TRUE AGREGAMOS LOS DATOS A DATA
         if resolucion:
-            data['RESOLUCION'] = resolucion
+            data['Resolucion'] = resolucion
         
-        if all(key in data for key in ['CASO', 'SINIESTRO VEHICULO', 'RESOLUCION']):
+        # SI YA TENEMOS LOS DATOS NECESARIOS SALIMOS DEL LOOP
+        if all(key in data for key in ['CASO', 'SINIESTRO VEHICULO', 'Resolucion']):
             break
-
+        
     doc.close()
     return data
-
+   
 # Procesar el PDF y extraer los datos
 pdf_file = './pdf/5.pdf'
 data_extracted = extract_data(pdf_file)
 print(data_extracted)
-# for key, value in data_extracted.items():
-#     print(f"{key}: {value}")
-    
