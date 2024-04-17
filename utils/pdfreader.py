@@ -1,6 +1,7 @@
 import fitz
 import re
 import os
+import openpyxl
 
 def upload_pdf(folder):
     data_from_pdf = {}
@@ -16,7 +17,6 @@ def upload_pdf(folder):
     return data_from_pdf
 
 def extract_data(pdf_file):
-    print("Extracting data from PDF...", pdf_file)
     data = {}
     doc = fitz.open(pdf_file)
     
@@ -59,7 +59,7 @@ def extract_data(pdf_file):
             match_gen2 = re.search(pattern, resolucion_text, re.IGNORECASE)
             if match_gen2:
                 resolucion['ACORDADO CON'] = match_gen2.group(1).strip()
-                resolucion['CUIL/CUIT'] = match_gen2.group(3).strip()
+                resolucion['CUIL/CUIT'] = match_gen2.group(3).strip()    
             match2 = re.search(r'MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$([\d\.,]+)', resolucion_text)
             if match2:
                 resolucion['MEDIANTE TRANSFERENCIA BANCARIA EN'] = match2.group(1).strip()
@@ -87,5 +87,38 @@ folders_pdf = './pdf'
 data = upload_pdf(folders_pdf)
 
 for siniestro_vehiculo, data_pdf in data.items():
+    print("Extrayendo la data de los PDF...")
     print(f'Datos para siniestros {siniestro_vehiculo}:')
     print(data_pdf)
+    
+workbook = openpyxl.Workbook()
+sheet = workbook.active
+
+sheet['A1'] = 'CASO'
+sheet['B1'] = 'SINIESTRO VEHICULO'
+sheet['C1'] = ' '
+sheet['D1'] = '#'
+sheet['E1'] = 'ESTADO DE NEGOCIACION'
+sheet['F1'] = 'ACORDADO CON'
+sheet['G1'] = 'CUIL/CUIT'
+sheet['H1'] = 'MEDIANTE TRANSFERENCIA BANCARIA EN'
+sheet['I1'] = 'CUIL/CUIT HONORARIOS'
+sheet['J1'] = 'MONTO HONORARIOS'
+sheet['K1'] = 'CBU'
+sheet['L1'] = 'GESTOR'
+
+for i, (siniestro_vehiculo, data_pdf) in enumerate(data.items(), start=2):
+    sheet[f'A{i}'] = data_pdf.get('CASO', '')
+    sheet[f'B{i}'] = siniestro_vehiculo
+    sheet[f'C{i}'] = ' '
+    sheet[f'D{i}'] = ' '
+    sheet[f'E{i}'] = 'Transferencia'
+    sheet[f'F{i}'] = data_pdf['Resolucion'].get('ACORDADO CON', '')
+    sheet[f'G{i}'] = data_pdf['Resolucion'].get('CUIL/CUIT', '')
+    sheet[f'H{i}'] = data_pdf['Resolucion'].get('MEDIANTE TRANSFERENCIA BANCARIA EN', '')
+    sheet[f'I{i}'] = data_pdf['Resolucion'].get('CUIL/CUIT HONORARIOS', '')
+    sheet[f'J{i}'] = data_pdf['Resolucion'].get('MONTO HONORARIOS', '')
+    sheet[f'K{i}'] = ' '
+    sheet[f'L{i}'] = ' '
+workbook.save('CIERRES.xlsx')
+workbook.close()
