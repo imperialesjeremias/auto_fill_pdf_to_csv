@@ -1,5 +1,19 @@
 import fitz
 import re
+import os
+
+def upload_pdf(folder):
+    data_from_pdf = {}
+
+    for filename in os.listdir(folder):
+        if filename.endswith('.pdf'):
+            pdf_file = os.path.join(folder, filename)
+            data_pdf = extract_data(pdf_file)
+            
+            if data_pdf:
+                siniestro_vehiculo = data_pdf['SINIESTRO VEHICULO']
+                data_from_pdf[siniestro_vehiculo] = data_pdf
+    return data_from_pdf
 
 def extract_data(pdf_file):
     print("Extracting data from PDF...", pdf_file)
@@ -67,8 +81,11 @@ def extract_data(pdf_file):
         
     doc.close()
     return data
-   
-# Procesar el PDF y extraer los datos
-pdf_file = './pdf/5.pdf'
-data_extracted = extract_data(pdf_file)
-print(data_extracted)
+
+
+folders_pdf = './pdf'
+data = upload_pdf(folders_pdf)
+
+for siniestro_vehiculo, data_pdf in data.items():
+    print(f'Datos para siniestros {siniestro_vehiculo}:')
+    print(data_pdf)
