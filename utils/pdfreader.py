@@ -33,7 +33,7 @@ def extract_data(pdf_file):
         
         # IETRAMOS SOBRE LAS LINEAS DEL PDF PARA EXTRAER LOS DATOS
         for line in lines:
-            if line.startswith('Informe final, solicitud'):
+            if line.startswith('Informe final, solicitud N°'):
                 data['CASO'] = line.split(' ')[-1]
             elif line.startswith('Siniestro N°'):
                 data['SINIESTRO VEHICULO'] = line.split(' ')[-1]
@@ -41,6 +41,9 @@ def extract_data(pdf_file):
                 resolucion_text = ' '.join(lines[lines.index(line):])
             elif line.startswith('Descripcion'):
                 descripcion_text = ' '.join(lines[lines.index(line):])
+            elif line.startswith('Datos bancarios'):
+                bancarios_text = ' '.join(lines[lines.index(line):])
+                print(bancarios_text)
         
         # CREAMOS UN DICCIONARIO PARA ALMACENAR LOS DATOS DE LA RESOLUCION
         resolucion = {}
@@ -64,6 +67,15 @@ def extract_data(pdf_file):
             if match2:
                 resolucion['MEDIANTE TRANSFERENCIA BANCARIA EN'] = match2.group(1).strip()
         
+        # SI EL METODO 2 NO FUNCIONA PROBAMOS CON EL METODO 3
+        if match_gen2 is None:
+            pattern = r'(ACORDADO CON)\s_*([\w\s]+)[\s_]*(CUI|CUIT|CUIL)\s*([\d]+)[)_]*\s*MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$?[\s_]*([\d.,]+)\s*-?\.?'
+            match_gen3 = re.search(pattern, resolucion_text, re.IGNORECASE)
+            if match_gen3:
+                resolucion['ACORDADO CON'] = match_gen3.group(2).strip()
+                resolucion['CUIL/CUIT'] = match_gen3.group(4).strip()
+                resolucion['MONTO ACORDADO'] = match_gen3.group(4).strip().replace(',', '')
+        
         # EXTRAEMOS LOS DATOS DE LOS HONORARIOS METODO 1
         pattern = r'(HONORARIOS ACORDADOS CON)\s*([\w\s-]+)(_|\s)*([CUI|CUIT])\s*(_|\s)*([\d]+)(_|\s)*MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$?[\s_]*([\d.,]+)\s*-?\.?'
         match_honorarios = re.search(pattern, descripcion_text, re.IGNORECASE)
@@ -71,6 +83,16 @@ def extract_data(pdf_file):
             resolucion['CUIL/CUIT HONORARIOS'] = match_honorarios.group(6)
             resolucion['MONTO HONORARIOS'] = match_honorarios.group(8)
 
+        
+        # VERIFICAMOS SI LA RESOLUCION ES URGENTE
+        def verificar_urgente(text):
+            pattern = r'FECHA\s+DE\s+PAGO\s+((banco del sol)?\s*urgente)'
+            if re.search(pattern, text, re.IGNORECASE):
+                resolucion['URGENTE'] = 'URGENTE'
+            else:
+                return ''    
+        verificar_urgente(resolucion_text)
+        
         # SI RESOLUCION ES TRUE AGREGAMOS LOS DATOS A DATA
         if resolucion:
             data['Resolucion'] = resolucion
@@ -99,26 +121,31 @@ sheet['B1'] = 'SINIESTRO VEHICULO'
 sheet['C1'] = ' '
 sheet['D1'] = '#'
 sheet['E1'] = 'ESTADO DE NEGOCIACION'
-sheet['F1'] = 'ACORDADO CON'
-sheet['G1'] = 'CUIL/CUIT'
-sheet['H1'] = 'MEDIANTE TRANSFERENCIA BANCARIA EN'
-sheet['I1'] = 'CUIL/CUIT HONORARIOS'
-sheet['J1'] = 'MONTO HONORARIOS'
-sheet['K1'] = 'CBU'
-sheet['L1'] = 'GESTOR'
+sheet['F1'] = 'BENEFICIARIO'
+sheet['G1'] = 'CUIT'
+sheet['H1'] = 'IMPORTE'
+sheet['I1'] = 'CBU'
+sheet['J1'] = 'LETRADO'
+sheet['K1'] = 'IMPORTE'
+sheet['L1'] = 'CBU'
+sheet['M1'] = 'GESTOR'
 
 for i, (siniestro_vehiculo, data_pdf) in enumerate(data.items(), start=2):
+    resolucion = data_pdf.get('Resolucion', {})
+    monto = resolucion.get('MEDIANTE TRANSFERENCIA BANCARIA EN') or resolucion.get('MONTO ACORDADO', '')
+    
     sheet[f'A{i}'] = data_pdf.get('CASO', '')
     sheet[f'B{i}'] = siniestro_vehiculo
-    sheet[f'C{i}'] = ' '
+    sheet[f'C{i}'] = resolucion.get('URGENTE', '')
     sheet[f'D{i}'] = ' '
     sheet[f'E{i}'] = 'Transferencia'
-    sheet[f'F{i}'] = data_pdf['Resolucion'].get('ACORDADO CON', '')
-    sheet[f'G{i}'] = data_pdf['Resolucion'].get('CUIL/CUIT', '')
-    sheet[f'H{i}'] = data_pdf['Resolucion'].get('MEDIANTE TRANSFERENCIA BANCARIA EN', '')
-    sheet[f'I{i}'] = data_pdf['Resolucion'].get('CUIL/CUIT HONORARIOS', '')
-    sheet[f'J{i}'] = data_pdf['Resolucion'].get('MONTO HONORARIOS', '')
-    sheet[f'K{i}'] = ' '
+    sheet[f'F{i}'] = resolucion.get('ACORDADO CON', '')
+    sheet[f'G{i}'] = resolucion.get('CUIL/CUIT', '')
+    sheet[f'H{i}'] = monto  # Ajustado para manejar ambos campos posibles para el monto
+    sheet[f'I{i}'] = ' '
+    sheet[f'J{i}'] = resolucion.get('CUIL/CUIT HONORARIOS', '')
+    sheet[f'K{i}'] = resolucion.get('MONTO HONORARIOS', '')
     sheet[f'L{i}'] = ' '
+    sheet[f'M{i}'] = ' '
 workbook.save('CIERRES.xlsx')
 workbook.close()
