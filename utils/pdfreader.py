@@ -76,13 +76,21 @@ def extract_data(pdf_file):
                 resolucion['CUIL/CUIT'] = match_gen3.group(4).strip()
                 resolucion['MONTO ACORDADO'] = match_gen3.group(4).strip().replace(',', '')
         
+        if match_gen3 is None:
+            pattern = r'(ACORDADO CON)\s*([\w\s\d.]+)[\s]*(CUIT|CUIL|CUIT)\s*([\d]+)\s*MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$?[\s_]*([\d.,\s_]+)\s*-?\.?'
+            match_gen4 = re.search(pattern, descripcion_text, re.IGNORECASE)
+            if match_gen4:
+                resolucion['ACORDADO CON'] = match_gen4.group(2).strip()
+                resolucion['CUIL/CUIT'] = match_gen4.group(4).strip()
+                resolucion['MONTO ACORDADO'] = match_gen4.group(5).strip().replace(',', '')
+        
         # EXTRAEMOS LOS DATOS DE LOS HONORARIOS METODO 1
         pattern = r'(HONORARIOS ACORDADOS CON)\s*([\w\s-]+)(_|\s)*([CUI|CUIT])\s*(_|\s)*([\d]+)(_|\s)*MEDIANTE TRANSFERENCIA BANCARIA EN\s*\$?[\s_]*([\d.,]+)\s*-?\.?'
         match_honorarios = re.search(pattern, descripcion_text, re.IGNORECASE)
         if match_honorarios:
             resolucion['CUIL/CUIT HONORARIOS'] = match_honorarios.group(6)
             resolucion['MONTO HONORARIOS'] = match_honorarios.group(8)
-
+    
         
         # VERIFICAMOS SI LA RESOLUCION ES URGENTE
         def verificar_urgente(text):
@@ -92,11 +100,12 @@ def extract_data(pdf_file):
             else:
                 return ''    
         verificar_urgente(resolucion_text)
+        verificar_urgente(descripcion_text)
         
-        # SI RESOLUCION ES TRUE AGREGAMOS LOS DATOS A DATA
+        # SI RESOLUCION ES TRUE AGREGAMOS LOS DATOS A DATA)
         if resolucion:
             data['Resolucion'] = resolucion
-        
+         
         # SI YA TENEMOS LOS DATOS NECESARIOS SALIMOS DEL LOOP
         if all(key in data for key in ['CASO', 'SINIESTRO VEHICULO', 'Resolucion']):
             break
